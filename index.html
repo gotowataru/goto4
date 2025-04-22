@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>ナンバーマージパズル (簡易版)</title>
+    <style>
+        body { display: flex; flex-direction: column; align-items: center; font-family: Arial, sans-serif; padding-bottom: 50px; min-height: 100vh; background-image: url('background_image.png'); background-size: cover; background-position: center center; background-repeat: no-repeat; background-color: #004d00; margin: 0; }
+
+        /* ★変更: gameContainer を横並びレイアウトに */
+        #gameContainer {
+            width: 95vw; /* 幅を広めに取る */
+            max-width: 1000px; /* 最大幅も調整 */
+            margin: 20px auto;
+            display: flex;
+            flex-direction: row; /* 横並びにする */
+            align-items: flex-start; /* 上端揃え */
+            justify-content: center; /* 中央寄せ */
+            gap: 20px; /* ルールとゲームエリアの間に隙間 */
+        }
+
+        /* ★追加: ルール説明エリアのスタイル */
+        #rulesContainer {
+            width: 220px; /* 幅を指定 */
+            padding: 15px;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: #eee;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.6;
+            flex-shrink: 0; /* コンテナが縮まないように */
+        }
+        #rulesContainer h3 {
+            margin-top: 0;
+            text-align: center;
+            color: #fff;
+            border-bottom: 1px solid #aaa;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+        #rulesContainer ul {
+            padding-left: 20px;
+            margin-top: 5px;
+            margin-bottom: 15px; /* 各項目の下に少しマージン */
+        }
+        #rulesContainer li {
+            margin-bottom: 8px;
+        }
+        #rulesContainer p { /* 説明文用のスタイル */
+             margin-bottom: 15px;
+        }
+
+
+        /* ★追加: ゲームエリア用のコンテナ */
+        #gameArea {
+            display: flex;
+            flex-direction: column; /* ゲーム要素は縦積み */
+            align-items: center; /* 中央揃え */
+            width: 100%; /* 横幅は可変に */
+            max-width: 500px; /* Canvasの最大幅に合わせるか調整 */
+        }
+
+        /* 既存要素のスタイル調整（必要に応じて） */
+        #score { font-size: 24px; font-weight: bold; color: #fff; background-color: rgba(0, 0, 0, 0.6); padding: 5px 15px; border-radius: 8px; margin-bottom: 10px; }
+        #infoText { width: 100%; box-sizing: border-box; margin-bottom: 10px; font-size: 16px; color: #eee; background-color: rgba(0, 0, 0, 0.6); padding: 5px 10px; border-radius: 5px; text-align: center; }
+        #controls { margin-bottom: 10px; }
+        #rotateButton { padding: 8px 15px; font-size: 14px; cursor: pointer; }
+        #gameCanvas {
+             border: 2px solid #fff; background-color: rgba(0, 0, 0, 0.2); cursor: pointer; display: block;
+             width: 100%; /* CSS上の表示幅を100%に */
+             height: auto; /* 高さは自動調整 */
+             max-width: 500px; /* HTMLで指定した最大描画幅 */
+        }
+        #availableBallsContainer {
+             display: flex; flex-wrap: wrap; justify-content: center; gap: 25px; align-items: center; background-color: rgba(0, 0, 0, 0.5); border: 1px solid #888; border-radius: 10px; padding: 15px;
+             width: 100%; /* 幅を100%に */
+             box-sizing: border-box;
+             max-width: 100%; /* 最大幅も100% */
+             min-height: 120px;
+             margin-top: 15px; /* Canvasとの間に少し隙間 */
+         }
+        .availablePair { width: 110px; height: 70px; cursor: pointer; border: 3px solid transparent; padding: 0; box-sizing: border-box; position: relative; display: flex; justify-content: center; align-items: center; }
+        .availablePair.selected { border-color: #0f0; border-radius: 5px; }
+        .pairBall { width: 45px; height: 45px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 16px; font-weight: bold; position: absolute; top: 50%; left: 50%; transition: transform 0.1s ease-out; box-sizing: border-box; }
+        .pairBall.anchor-ball { border: 3px solid #000; }
+        .pairBall.ball1 { transform: translate(calc(-50% - 23px), -50%); }
+        .pairBall.ball2 { transform: translate(calc(-50% + 23px), -50%); }
+        .availablePair[class*="orient-"] .pairBall.ball1 { transform: translate(-50%, -50%); }
+        .orient-0 .pairBall.ball2 { transform: translate(calc(-50% + 40px), -50%); } .orient-1 .pairBall.ball2 { transform: translate(calc(-50% + 20px), calc(-50% + 35px)); } .orient-2 .pairBall.ball2 { transform: translate(calc(-50% - 20px), calc(-50% + 35px)); } .orient-3 .pairBall.ball2 { transform: translate(calc(-50% - 40px), -50%); } .orient-4 .pairBall.ball2 { transform: translate(calc(-50% - 20px), calc(-50% - 35px)); } .orient-5 .pairBall.ball2 { transform: translate(calc(-50% + 20px), calc(-50% - 35px)); }
+        .ballText { color: #000; }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="rulesContainer">
+            <h3>ルール説明</h3>
+            <p>ボールをうまく配置して、合体・消去し、ハイスコアを目指すパズルゲームです。</p>
+
+            <h4>遊び方</h4>
+            <ul>
+                <li>画面下のボールのペア（組）をクリックして選択します。</li>
+                <li>「回転」ボタンでペアの向き（6方向）を変えられます。</li>
+                <li>ボードの空いているマスをクリックすると、選択中ボール配置されます。</li>
+            </ul>
+
+            <h4>ボールの合体と消去</h4>
+            <ul>
+                <li>同じ数字（1か2）のボールが3つ以上、隣接（左右または斜め）すると、1つ大きい数字のボール1個にまとまります（例: 1が3つで2になる）。</li>
+                <li>数字「3」のボールが3つ以上隣接すると、次の数字にはならずに、そのボール全てが消えます。</li>
+                <li>ボールが合体・消去されるとスコアが入ります。連鎖でスコアアップ！</li>
+            </ul>
+        </div>
+
+        <div id="gameArea">
+            <div id="score">スコア: 0</div>
+            <div id="infoText">置きたいペアを選び、ボタン/'R'キーで回転。盤面の空きマスをクリックして配置。</div>
+            <div id="controls">
+                <button id="rotateButton">回転 (R)</button>
+            </div>
+            <canvas id="gameCanvas" width="500" height="250"></canvas>
+            <div id="availableBallsContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d'); const availableBallsContainer = document.getElementById('availableBallsContainer'); const infoText = document.getElementById('infoText'); const rotateButton = document.getElementById('rotateButton'); const scoreElement = document.getElementById('score');
+
+        // --- Game Constants and State ---
+        const rows = 3; const colsPerRow = [2, 3, 2]; const tileSize = 60; const numbers = [1, 2, 3]; const colors = ['#FFD700', '#007bff', '#dc3545']; const initialAvailableBallCount = 5; const availableBallNumbersRange = [1, 2, 3]; const ORIENTATION_COUNT = 6; const SCORE_MULT_MERGE = 10; const SCORE_PER_THREE = 50;
+        let board = []; let availableBalls = []; let selectedAvailableBallIndex = -1; let selectedPairOrientation = 0; let score = 0;
+
+        // --- Initialization ---
+        function initGame() {
+            board = []; for (let i = 0; i < rows; i++) { let row = []; for (let j = 0; j < colsPerRow[i]; j++) { row.push(null); } board.push(row); }
+            replenishAvailableBalls(); selectedAvailableBallIndex = -1; selectedPairOrientation = 0; score = 0;
+            updateScoreDisplay(); drawBoard(); drawAvailableBalls(); updateInfoText();
+        }
+
+        // --- Replenish Available Pairs ---
+        function replenishAvailableBalls() { availableBalls = []; for (let i = 0; i < initialAvailableBallCount; i++) { const rand1 = availableBallNumbersRange[Math.floor(Math.random() * availableBallNumbersRange.length)]; const rand2 = availableBallNumbersRange[Math.floor(Math.random() * availableBallNumbersRange.length)]; availableBalls.push({ num1: rand1, num2: rand2 }); } }
+
+        // --- Drawing Functions ---
+        function drawBall(x, y, number) { if (number < 1 || number > 3) return; const color = colors[number - 1]; ctx.beginPath(); ctx.arc(x, y, tileSize / 2, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke(); ctx.fillStyle = '#000'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(number, x, y); }
+        function drawEmptyCell(x, y) { ctx.beginPath(); ctx.arc(x, y, tileSize / 2 - 5, 0, Math.PI * 2); ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.stroke(); }
+        function drawBoard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < rows; i++) {
+                const offsetX = (canvas.width - colsPerRow[i] * tileSize * 0.9) / 2;
+                for (let j = 0; j < colsPerRow[i]; j++) {
+                    const tile = board[i][j];
+                    const x = offsetX + j * tileSize * 0.9 + tileSize / 2;
+                    const y = i * tileSize * 0.8 + tileSize;
+                    if (tile && tile.number) { drawBall(x, y, tile.number); }
+                    else { drawEmptyCell(x, y); }
+                }
+            }
+        }
+        function drawAvailableBalls() { availableBallsContainer.innerHTML = ''; availableBalls.forEach((pair, index) => { const pairContainerDiv = document.createElement('div'); pairContainerDiv.classList.add('availablePair'); pairContainerDiv.dataset.index = index; const ball1Div = document.createElement('div'); ball1Div.classList.add('pairBall', 'ball1', 'anchor-ball'); ball1Div.style.backgroundColor = colors[pair.num1 - 1]; const textSpan1 = document.createElement('span'); textSpan1.classList.add('ballText'); textSpan1.textContent = pair.num1; ball1Div.appendChild(textSpan1); const ball2Div = document.createElement('div'); ball2Div.classList.add('pairBall', 'ball2'); ball2Div.style.backgroundColor = colors[pair.num2 - 1]; const textSpan2 = document.createElement('span'); textSpan2.classList.add('ballText'); textSpan2.textContent = pair.num2; ball2Div.appendChild(textSpan2); pairContainerDiv.appendChild(ball1Div); pairContainerDiv.appendChild(ball2Div); if (index === selectedAvailableBallIndex) { pairContainerDiv.classList.add('selected'); pairContainerDiv.classList.add('orient-' + selectedPairOrientation); } pairContainerDiv.addEventListener('click', () => { selectedAvailableBallIndex = index; selectedPairOrientation = 0; drawAvailableBalls(); updateInfoText(); }); availableBallsContainer.appendChild(pairContainerDiv); }); if (availableBalls.length === 0) { if (board.flat().some(cell => cell === null)) { infoText.textContent = "ボールを補充します..."; setTimeout(() => { replenishAvailableBalls(); drawAvailableBalls(); updateInfoText(); }, 500); } else { infoText.textContent = "ゲームオーバー！置ける場所がありません。"; } } }
+
+        // --- UI Update Functions ---
+        function updateInfoText() { if (selectedAvailableBallIndex === -1) { infoText.textContent = "下のボールペアを選んでください。"; } else { const selectedPair = availableBalls[selectedAvailableBallIndex]; infoText.textContent = `「${selectedPair.num1}-${selectedPair.num2}」を選択中。ボタン/'R'で回転、クリックで配置。`; } }
+        function updateScoreDisplay() { scoreElement.textContent = `スコア: ${score}`; }
+
+        // --- Game Logic Helpers ---
+        function getBoardCoordsFromMouse(mouseX, mouseY) { for (let i = 0; i < rows; i++) { const offsetX = (canvas.width - colsPerRow[i] * tileSize * 0.9) / 2; for (let j = 0; j < colsPerRow[i]; j++) { const tileX = offsetX + j * tileSize * 0.9 + tileSize / 2; const tileY = i * tileSize * 0.8 + tileSize; const dist = Math.sqrt((mouseX - tileX) ** 2 + (mouseY - tileY) ** 2); if (dist < tileSize / 2) { return [i, j]; } } } return null; }
+        function getNeighbors(r, c) { const neighbors = []; const currentColCount = colsPerRow[r]; const isValid = (nr, nc) => nr >= 0 && nr < rows && nc >= 0 && nc < colsPerRow[nr]; const leftC = c - 1; if (isValid(r, leftC)) neighbors.push([r, leftC]); const rightC = c + 1; if (isValid(r, rightC)) neighbors.push([r, rightC]); if (r > 0) { const pRC = colsPerRow[r - 1]; if (pRC > currentColCount) { if (isValid(r - 1, c)) neighbors.push([r - 1, c]); if (isValid(r - 1, c + 1)) neighbors.push([r - 1, c + 1]); } else { if (isValid(r - 1, c - 1)) neighbors.push([r - 1, c - 1]); if (isValid(r - 1, c)) neighbors.push([r - 1, c]); } } if (r < rows - 1) { const nRC = colsPerRow[r + 1]; if (nRC > currentColCount) { if (isValid(r + 1, c)) neighbors.push([r + 1, c]); if (isValid(r + 1, c + 1)) neighbors.push([r + 1, c + 1]); } else { if (isValid(r + 1, c - 1)) neighbors.push([r + 1, c - 1]); if (isValid(r + 1, c)) neighbors.push([r + 1, c]); } } return Array.from(new Set(neighbors.map(JSON.stringify)), JSON.parse); }
+        function findConnectedGroup(r, c) { const startNode = board[r]?.[c]; if (!startNode) return []; const targetNumber = startNode.number; const group = []; const queue = [[r, c]]; const visited = new Set(); visited.add(`${r},${c}`); while (queue.length > 0) { const [currR, currC] = queue.shift(); if(board[currR]?.[currC]?.number === targetNumber){ group.push([currR, currC]); const neighbors = getNeighbors(currR, currC); for (const [nr, nc] of neighbors) { const neighborNode = board[nr]?.[nc]; const key = `${nr},${nc}`; if (neighborNode && neighborNode.number === targetNumber && !visited.has(key)) { visited.add(key); queue.push([nr, nc]); } } } } return group; }
+        function handlePlacement(r, c) { if (!board[r]?.[c]) { return; } const initialNumber = board[r][c].number; const group = findConnectedGroup(r, c); if (group.length >= 3) { if (initialNumber === 3) { score += group.length * SCORE_PER_THREE; updateScoreDisplay(); group.forEach(([gr, gc]) => { board[gr][gc] = null; }); drawBoard(); } else if (initialNumber < 3) { const upgradedNumber = initialNumber + 1; score += group.length * initialNumber * SCORE_MULT_MERGE; updateScoreDisplay(); if (board[r]?.[c]){ board[r][c].number = upgradedNumber; group.forEach(([gr, gc]) => { if (gr !== r || gc !== c) { board[gr][gc] = null; } }); drawBoard(); handlePlacement(r, c); } else { group.forEach(([gr, gc]) => { if (gr !== r || gc !== c) { board[gr][gc] = null; } }); drawBoard(); } } } }
+        function getSecondBallCoords(r1, c1, orientation) { const isValid = (nr, nc) => nr >= 0 && nr < rows && nc >= 0 && nc < colsPerRow[nr]; const r = r1, c = c1; const currentColCount = colsPerRow[r]; let nr = -1, nc = -1; switch (orientation) { case 0: /*R*/ nr=r; nc=c+1; break; case 1: /*BR*/ if(r<rows-1){ const nRC=colsPerRow[r+1]; nr=r+1; nc=(nRC>currentColCount)?c+1:c; } break; case 2: /*BL*/ if(r<rows-1){ const nRC=colsPerRow[r+1]; nr=r+1; nc=(nRC>currentColCount)?c:c-1; } break; case 3: /*L*/ nr=r; nc=c-1; break; case 4: /*TL*/ if(r>0){ const pRC=colsPerRow[r-1]; nr=r-1; nc=(pRC>currentColCount)?c:c-1; } break; case 5: /*TR*/ if(r>0){ const pRC=colsPerRow[r-1]; nr=r-1; nc=(pRC>currentColCount)?c+1:c; } break; default: return null; } if (isValid(nr, nc)) { return [nr, nc]; } else { return null; } }
+
+        // --- Rotation Handling ---
+        function rotateSelectedPair() { if (selectedAvailableBallIndex !== -1) { selectedPairOrientation = (selectedPairOrientation + 1) % ORIENTATION_COUNT; drawAvailableBalls(); updateInfoText(); } }
+        window.addEventListener('keydown', (e) => { if (e.key === 'r' || e.key === 'R') { e.preventDefault(); rotateSelectedPair(); } });
+        rotateButton.addEventListener('click', rotateSelectedPair);
+
+        // --- Canvas Click Listener ---
+        canvas.addEventListener('click', (e) => { const rect = canvas.getBoundingClientRect(); const mouseX = e.clientX - rect.left; const mouseY = e.clientY - rect.top; const clickedCoords = getBoardCoordsFromMouse(mouseX, mouseY); if (clickedCoords && selectedAvailableBallIndex !== -1) { const [r1, c1] = clickedCoords; const secondBallCoords = getSecondBallCoords(r1, c1, selectedPairOrientation); const isValid = (nr, nc) => nr >= 0 && nr < rows && nc >= 0 && nc < colsPerRow[nr]; if (board[r1]?.[c1] === null && secondBallCoords !== null && board[secondBallCoords[0]]?.[secondBallCoords[1]] === null) { const [r2, c2] = secondBallCoords; const selectedPair = availableBalls[selectedAvailableBallIndex]; const number1 = selectedPair.num1; const number2 = selectedPair.num2; board[r1][c1] = { number: number1 }; board[r2][c2] = { number: number2 }; availableBalls.splice(selectedAvailableBallIndex, 1); selectedAvailableBallIndex = -1; selectedPairOrientation = 0; drawBoard(); drawAvailableBalls(); updateInfoText(); handlePlacement(r1, c1); if (board[r2]?.[c2]) { handlePlacement(r2, c2); } if (availableBalls.length === 0) { drawAvailableBalls(); } } else { const orientationSymbols = ['→', '↘', '↙', '←', '↖', '↗']; infoText.textContent = "ここにはペアを置けません (" + orientationSymbols[selectedPairOrientation] + "向き)"; setTimeout(updateInfoText, 1500); } } else if (clickedCoords && selectedAvailableBallIndex === -1) { infoText.textContent = "先に下から置きたいボールのペアを選んでください。"; } });
+
+        // --- Game Start ---
+        initGame();
+
+    </script>
+</body>
+</html>
